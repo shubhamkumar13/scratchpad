@@ -111,6 +111,7 @@ benches.add_files(bench_files)
 # st.write(benches.structure)
 # st.write(bench_files)
 
+st.header("Select benchmarks")
 n = int(st.text_input('Number of benchmarks','2'))
 
 containers = [st.columns(3) for i in range(n)]
@@ -129,10 +130,10 @@ def unzip_dict(d):
     (x, y) = a[0], flatten(a[1])
     return (x, y)
 
-def fmt_variants(commit, variant):
+def fmt_variant(commit, variant):
     return (variant.split('_')[0] + '+' + str(commit) + '_' + variant.split('_')[1])
 
-def unfmt(variant):
+def unfmt_variant(variant):
     commit = variant.split('_')[0].split('+')[-1]
     variant_root = variant.split('_')[1]
     variant_stem = variant.split('_')[0].split('+')
@@ -150,10 +151,10 @@ def get_selected_values(n):
         timestamp_val = containers[i][1].selectbox('timestamp', benches.structure[host_val].keys(), key = str(i) + '1')
         commits, variants = unzip_dict((benches.structure[host_val][timestamp_val]).items())
         # st.write(variants)
-        fmtted_variants = [fmt_variants(c, v) for c,v in zip(commits, variants)]
+        fmtted_variants = [fmt_variant(c, v) for c,v in zip(commits, variants)]
         # st.write(fmtted_variant)
         variant_val = containers[i][2].selectbox('variant', fmtted_variants, key = str(i) + '2')
-        selected_commit, selected_variant = unfmt(variant_val)
+        selected_commit, selected_variant = unfmt_variant(variant_val)
         lst.append({"host" : host_val, "timestamp" : timestamp_val, "commit" : selected_commit, "variant" : selected_variant})
     return lst
 
@@ -233,10 +234,10 @@ baseline_timestamp = baseline_container[1].selectbox(
     key = 'B1')    
 baseline_commits, baseline_variant = unzip_dict((selected_benches.structure[baseline_host][baseline_timestamp]).items())
 
-fmtted_variants = [fmt_variants(c, v) for c,v in zip(baseline_commits, baseline_variant)]
+fmtted_variants = [fmt_variant(c, v) for c,v in zip(baseline_commits, baseline_variant)]
 # st.write(fmtted_variant)
 variant_val = baseline_container[2].selectbox('variant', fmtted_variants, key = 'B2')
-baseline_commit, baseline_variant = unfmt(variant_val)
+baseline_commit, baseline_variant = unfmt_variant(variant_val)
 
 baseline_record = {
     "host" : baseline_host,
@@ -244,3 +245,66 @@ baseline_record = {
     "commit" : baseline_commit,
     "variant" : baseline_variant
 }
+
+def fmt_baseline(record):
+    date = record["timestamp"].split('_')[0]
+    commit = record["commit"][:7]
+    variant = record["variant"].split('_')[0]
+    return str(variant) + '_' + date + '_' + commit
+
+def create_column(df, variant, metric):
+    df = pd.DataFrame.copy(df)
+    variant_metric_name = list([ zip(df[metric], df[x], df['name'])
+            for x in df.columns.array if x == "variant" ][0])
+    name_metric = {n:t for (t, v, n) in variant_metric_name if v == variant}
+    return name_metric
+
+def add_display_name(df,variant, metric):
+    name_metric = create_column(pd.DataFrame.copy(df), variant, metric)
+    disp_name = [name+" ("+str(round(name_metric[name], 2))+")" for name in df["name"]]
+    df["display_name"] = pd.Series(disp_name, index=df.index)
+    return df
+
+def normalise(df,variant,topic,additionalTopics=[]):
+    df = add_display_name(df,variant,topic)
+    df = df.sort_values(["name","variant"])
+    grouped = df.filter(items=['name',topic,'variant','display_name']+additionalTopics).groupby('variant')
+    ndata_frames = []
+    for group in grouped:
+        (v,data) = group
+        if(v != variant):
+            data['b'+topic] = grouped.get_group(variant)[topic].values
+            data[['n'+topic]] = data[[topic]].div(grouped.get_group(variant)[topic].values, axis=0)
+            for t in additionalTopics:
+                data[[t]] = grouped.get_group(variant)[t].values
+            ndata_frames.append(data)
+            df = pd.concat(ndata_frames)
+            return df
+        else:
+            print("The selected baseline variant is equal to the other variants\n" 
+                  + "Update the dropdowns with different varians to plot normalisation graphs\n")
+            return None
+
+def plot_normalised(df,variant,topic):
+    if df is not None:
+        df = pd.DataFrame.copy(df)
+        df.sort_values(by=[topic],inplace=True)
+        df[topic] = df[topic] - 1
+        g = sns.catplot (x="display_name", y=topic, hue='variant', data = df, kind ='bar', aspect=4, bottom=1)
+        g.set_xticklabels(rotation=90)
+        g.ax.legend(loc=8)
+        g._legend.remove()
+        g.ax.set_xlabel("Benchmarks")
+        return g
+        # g.ax.set_yscale('log')
+    else:
+        print("ndf is equal to None, possibly due to variants being equal to the baseline variant\n")
+
+# FIXME : coq fails to build on domains
+df = df[(df.name != 'coq.BasicSyntax.v') & (df.name != 'coq.AbstractInterpretation.v')]
+
+baseline = fmt_baseline(baseline_record)
+ndf = normalise(df, baseline, 'time_secs')
+
+with st.expander("Show normalized data"):
+    st.write(ndf)
