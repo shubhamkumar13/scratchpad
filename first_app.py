@@ -7,14 +7,11 @@ from functools import reduce
 from nested_dict import nested_dict
 from pprint import pprint
 
-import uuid
 import json
 import os
 import pandas as pd
 import pandas.io.json as pdjson
 import seaborn as sns
-from collections import namedtuple
-from itertools import chain
 
 st.title("Sequential Benchmarks")
 
@@ -210,17 +207,27 @@ def get_dataframes_from_files(files):
     df = df.sort_values(['name'])
     return df
 
+def plot(df, y_axis):
+    graph = sns.catplot (
+        x = "name",
+        y = y_axis,
+        hue = "variant",
+        data = df,
+        kind = "bar",
+        aspect = 4
+    )
+    graph.set_xticklabels(rotation=90)
+    return graph
+
 df = get_dataframes_from_files(selected_files)
 
 st.header("Data Table")
 with st.expander("Show table of selected benchmarks"):
-    st.dataframe(df)
+    st.write(df)
 
 st.header("Time")
-with st.expander("Show Time Graph"):
-    graph = sns.catplot (x='name', y='time_secs', hue='variant', data = df, kind ='bar', aspect=4)
-    graph.set_xticklabels(rotation=90)
-    st.pyplot(graph)
+with st.expander("Show time graph"):
+    st.pyplot(plot(df.copy(), 'time_secs'))
 
 st.header("Select baseline")
 baseline_container = st.columns(3)
@@ -250,12 +257,15 @@ def fmt_baseline(record):
     date = record["timestamp"].split('_')[0]
     commit = record["commit"][:7]
     variant = record["variant"].split('_')[0]
-    return str(variant) + '_' + date + '_' + commit
+    s = str(variant) + '_' + date + '_' + commit
+    return s
 
 def create_column(df, variant, metric):
     df = pd.DataFrame.copy(df)
     variant_metric_name = list([ zip(df[metric], df[x], df['name'])
             for x in df.columns.array if x == "variant" ][0])
+    # st.write(df)
+    # st.write(variant)
     name_metric = {n:t for (t, v, n) in variant_metric_name if v == variant}
     return name_metric
 
@@ -281,7 +291,7 @@ def normalise(df,variant,topic,additionalTopics=[]):
             df = pd.concat(ndata_frames)
             return df
         else:
-            print("The selected baseline variant is equal to the other variants\n" 
+            st.write("The selected baseline variant is equal to the other variants\n" 
                   + "Update the dropdowns with different varians to plot normalisation graphs\n")
             return None
 
@@ -298,13 +308,38 @@ def plot_normalised(df,variant,topic):
         return g
         # g.ax.set_yscale('log')
     else:
-        print("ndf is equal to None, possibly due to variants being equal to the baseline variant\n")
+        st.warning("baseline and selected graphs can't be the same for generating normalized graphs\n")
+        return None
 
 # FIXME : coq fails to build on domains
 df = df[(df.name != 'coq.BasicSyntax.v') & (df.name != 'coq.AbstractInterpretation.v')]
 
 baseline = fmt_baseline(baseline_record)
-ndf = normalise(df, baseline, 'time_secs')
+print(baseline)
 
-with st.expander("Show normalized data"):
+
+ndf = normalise(df.copy(), baseline, 'time_secs')
+st.header("Normalized Time")
+with st.expander("Data"):
     st.write(ndf)
+with st.expander("Graph"):
+    if ndf.all() != None:
+        g = plot_normalised(ndf.copy(), baseline,'ntime_secs')
+        st.pyplot(g)
+
+st.header("Top heap words")
+with st.expander("Expand"):
+    st.pyplot(plot(df.copy(), 'gc.top_heap_words'))
+
+ndf = normalise(df.copy(), baseline, 'gc.top_heap_words')
+st.header("Normalized top heap words")
+with st.expander("Data"):
+    st.write(ndf)
+with st.expander("Expand"):
+    if ndf.all() != None:
+        g = plot_normalised(ndf.copy(), baseline, 'ngc.top_heap_words')
+        st.pyplot(g)
+
+st.header("Max RSS (KB)")
+with st.expander("Expand"):
+    st.pyplot(plot(df.copy(), "maxrss_kB"))
