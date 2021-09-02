@@ -2,6 +2,7 @@ from re import U, split
 import streamlit as st
 import numpy as np
 import pandas as pd
+from functools import reduce
 
 from nested_dict import nested_dict
 from pprint import pprint
@@ -65,15 +66,15 @@ class StupidIdea:
 
     def __init__(self):
         self.structure = nested_dict(3, list)
-        self.config["bench_type"] = "/sequential/"
-        self.config["artifacts_dir"] = "/home/sk/sandmark-nightly/sequential"
+        self.config["bench_type"] = "sequential"
+        self.config["artifacts_dir"] = "/home/sk/sandmark-nightly"
     
     def add(self, host, timestamp, commit, variant):
         self.structure[host][timestamp][commit].append(variant)
     
     def add_files(self, files):
         for x in files:
-            l = x.split(self.config["bench_type"])[1]
+            l = x.split(str("/" + self.config["bench_type"] + "/"))[1]
             d = l.split("/")
             self.add(
                 d[0],
@@ -84,18 +85,12 @@ class StupidIdea:
     
     def to_filepath(self):
         lst = []
+        temp = ""
         for host, timestamps in self.structure.items():
             for timestamp, commits in timestamps.items():
-                for commit, variant_list in commits.items():
-                    file = os.path.join(
-                        self.config["artifacts_dir"],
-                        self.config["/sequential/"],
-                        host,
-                        timestamp,
-                        commit,
-                        variant_list[0]
-                    )
-                    lst.append(file)
+                for commit, bench_files in commits.items():
+                    t = [self.config["artifacts_dir"] + "/" + self.config["bench_type"] + "/" + str(host) + "/" + str(timestamp) + "/" + str(commit) + "/" + str(bench_file) for bench_file in bench_files]
+                    lst.append(t)
         return lst
 
 
@@ -122,7 +117,7 @@ containers = [st.columns(3) for i in range(n)]
 
 # [[a11, a12 ... a1n], [a21, a22 ... a2n], ... [am1, am2 ... amn]] => [a11]
 def flatten(lst):
-    return [i for i in chain(*lst)]
+    return reduce(lambda a, b: a + b, lst)
 
 # [(a1, b1), (a2, b2) ... (an, bn)] => ([a1, a2, ... an], [b1, b2, ... bn])
 def unzip(lst):
@@ -130,6 +125,7 @@ def unzip(lst):
 
 def unzip_dict(d):
     a = unzip(list(d))
+    # print(a[1])
     (x, y) = a[0], flatten(a[1])
     return (x, y)
 
@@ -138,8 +134,13 @@ def fmt_variants(commit, variant):
 
 def unfmt(variant):
     commit = variant.split('_')[0].split('+')[-1]
-    variant = variant.split('_')[0].split('+')[0] + '+' + variant.split('_')[0].split('+')[1] + '_' + variant.split('_')[1]
-    return (commit , variant)
+    variant_root = variant.split('_')[1]
+    variant_stem = variant.split('_')[0].split('+')
+    variant_stem.pop()
+    variant_stem = reduce(lambda a, b: b if a == "" else a + "+" + b, variant_stem, "")
+    new_variant = variant_stem + '_' + variant_root
+    # st.write(new_variant)
+    return (commit , new_variant)
 
 def get_selected_values(n):
     lst = []
@@ -156,15 +157,17 @@ def get_selected_values(n):
         lst.append({"host" : host_val, "timestamp" : timestamp_val, "commit" : selected_commit, "variant" : selected_variant})
     return lst
 
-selected_files = StupidIdea()
-_ = [selected_files.add(f["host"], f["timestamp"], f["commit"], f["variant"]) for f in get_selected_values(n)]
+selected_benches = StupidIdea()
+_ = [selected_benches.add(f["host"], f["timestamp"], f["commit"], f["variant"]) for f in get_selected_values(n)]
 
 # Expander for showing bench files
-with st.expander("Show metadata for selected benchmarks"):
-    st.write(selected_files.structure)
+with st.expander("Show metadata of selected benchmarks"):
+    st.write(selected_benches.structure)
 
-# selected_files = 
+selected_files = flatten(selected_benches.to_filepath())
+# st.write(selected_filepaths)
 
+# st.write(selected_filepaths)
 # def get_filepath(file):
 #     host_val, timestamp_val, variant_val = file[0], file[1], file[2]
 
@@ -183,48 +186,61 @@ with st.expander("Show metadata for selected benchmarks"):
 
 #     return file
 
-# def get_dataframe_from_file(file):
-#     # json to dataframe
-#     data_frames = []
+def get_dataframe(file):
+    # json to dataframe
 
-#     with open(file) as f:
-#         data = []
-#         for l in f:
-#             data.append(json.loads(l))
-#         df = pdjson.json_normalize(data)
-#         value     = file.split('/sequential/')[1]
-#         date      = value.split('/')[1].split('_')[0]
-#         commit_id = value.split('/')[2][:7]
-#         variant   = value.split('/')[3].split('_')[0]
-#         df["variant"] = variant + '_' + date + '_' + commit_id
-#         data_frames.append(df)
+    with open(file) as f:
+        data = []
+        for l in f:
+            data.append(json.loads(l))
+        df = pdjson.json_normalize(data)
+        value     = file.split('/sequential/')[1]
+        date      = value.split('/')[1].split('_')[0]
+        commit_id = value.split('/')[2][:7]
+        variant   = value.split('/')[3].split('_')[0]
+        df["variant"] = variant + '_' + date + '_' + commit_id
+    
+    return df
 
-#     df = pd.concat (data_frames, sort=False)
-#     df = df.sort_values(['name'])
-#     return df
 
-# selected_file_path = [get_filepath(list(file.values())) for file in selected_file_list]
-# df_list = [get_dataframe_from_file(file) for file in selected_file_path]
+def get_dataframes_from_files(files):
+    data_frames = [get_dataframe(file) for file in files]
+    df = pd.concat (data_frames, sort=False)
+    df = df.sort_values(['name'])
+    return df
 
-# with st.expander("Show table for the selected benchmarks"):
-#     for i in df_list:
-#         st.write(i)
+df = get_dataframes_from_files(selected_files)
 
-# st.header("Select baseline")
-# base_container = st.columns(3)
-# baseline_h, baseline_t, baseline_v = (
-#     base_container[0].selectbox(
-#         'hostname', 
-#         [file["host"] for file in selected_file_list],
-#         key = str(uuid.uuid4())    
-#     ),
-#     base_container[1].selectbox(
-#         'timestamp', 
-#         [file["timestamp"] for file in selected_file_list],
-#         key = str(uuid.uuid4())    
-#     ),
-#     base_container[2].selectbox(
-#         'variant', 
-#         [file["variant"] for file in selected_file_list],
-#         key = str(uuid.uuid4())    
-#     ))
+st.header("Data Table")
+with st.expander("Show table of selected benchmarks"):
+    st.dataframe(df)
+
+st.header("Time")
+with st.expander("Show Time Graph"):
+    graph = sns.catplot (x='name', y='time_secs', hue='variant', data = df, kind ='bar', aspect=4)
+    graph.set_xticklabels(rotation=90)
+    st.pyplot(graph)
+
+st.header("Select baseline")
+baseline_container = st.columns(3)
+baseline_host = baseline_container[0].selectbox(
+    'hostname', 
+    selected_benches.structure.keys(),
+    key = 'B0')
+baseline_timestamp = baseline_container[1].selectbox(
+    'timestamp', 
+    selected_benches.structure[baseline_host].keys(),
+    key = 'B1')    
+baseline_commits, baseline_variant = unzip_dict((selected_benches.structure[baseline_host][baseline_timestamp]).items())
+
+fmtted_variants = [fmt_variants(c, v) for c,v in zip(baseline_commits, baseline_variant)]
+# st.write(fmtted_variant)
+variant_val = baseline_container[2].selectbox('variant', fmtted_variants, key = 'B2')
+baseline_commit, baseline_variant = unfmt(variant_val)
+
+baseline_record = {
+    "host" : baseline_host,
+    "timestamp" : baseline_timestamp,
+    "commit" : baseline_commit,
+    "variant" : baseline_variant
+}
