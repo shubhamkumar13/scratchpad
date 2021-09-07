@@ -219,40 +219,6 @@ def plot(df, y_axis):
     graph.set_xticklabels(rotation=90)
     return graph
 
-df = get_dataframes_from_files(selected_files)
-
-st.header("Data Table")
-with st.expander("Show table of selected benchmarks"):
-    st.write(df)
-
-st.header("Time")
-with st.expander("Show time graph"):
-    st.pyplot(plot(df.copy(), 'time_secs'))
-
-st.header("Select baseline")
-baseline_container = st.columns(3)
-baseline_host = baseline_container[0].selectbox(
-    'hostname', 
-    selected_benches.structure.keys(),
-    key = 'B0')
-baseline_timestamp = baseline_container[1].selectbox(
-    'timestamp', 
-    selected_benches.structure[baseline_host].keys(),
-    key = 'B1')    
-baseline_commits, baseline_variant = unzip_dict((selected_benches.structure[baseline_host][baseline_timestamp]).items())
-
-fmtted_variants = [fmt_variant(c, v) for c,v in zip(baseline_commits, baseline_variant)]
-# st.write(fmtted_variant)
-variant_val = baseline_container[2].selectbox('variant', fmtted_variants, key = 'B2')
-baseline_commit, baseline_variant = unfmt_variant(variant_val)
-
-baseline_record = {
-    "host" : baseline_host,
-    "timestamp" : baseline_timestamp,
-    "commit" : baseline_commit,
-    "variant" : baseline_variant
-}
-
 def fmt_baseline(record):
     date = record["timestamp"].split('_')[0]
     commit = record["commit"][:7]
@@ -291,11 +257,11 @@ def normalise(df,variant,topic,additionalTopics=[]):
             df = pd.concat(ndata_frames)
             return df
         else:
-            st.write("The selected baseline variant is equal to the other variants\n" 
+            st.warning("The selected baseline variant is equal to the other variants\n" 
                   + "Update the dropdowns with different varians to plot normalisation graphs\n")
             return None
 
-def plot_normalised(df,variant,topic):
+def plot_normalised(df, topic):
     if df is not None:
         df = pd.DataFrame.copy(df)
         df.sort_values(by=[topic],inplace=True)
@@ -311,35 +277,83 @@ def plot_normalised(df,variant,topic):
         st.warning("baseline and selected graphs can't be the same for generating normalized graphs\n")
         return None
 
+df = get_dataframes_from_files(selected_files)
+
+st.header("Data Table")
+with st.expander("Show table of selected benchmarks"):
+    st.write(df)
+
+st.header("Time")
+with st.expander("Show time graph"):
+    st.pyplot(plot(df.copy(), 'time_secs'))
+
+st.header("Select baseline")
+baseline_container = st.columns(3)
+baseline_host = baseline_container[0].selectbox(
+    'hostname', 
+    selected_benches.structure.keys(),
+    key = 'B0')
+baseline_timestamp = baseline_container[1].selectbox(
+    'timestamp', 
+    selected_benches.structure[baseline_host].keys(),
+    key = 'B1')    
+baseline_commits, baseline_variant = unzip_dict((selected_benches.structure[baseline_host][baseline_timestamp]).items())
+
+fmtted_variants = [fmt_variant(c, v) for c,v in zip(baseline_commits, baseline_variant)]
+# st.write(fmtted_variant)
+variant_val = baseline_container[2].selectbox('variant', fmtted_variants, key = 'B2')
+baseline_commit, baseline_variant = unfmt_variant(variant_val)
+
+baseline_record = {
+    "host" : baseline_host,
+    "timestamp" : baseline_timestamp,
+    "commit" : baseline_commit,
+    "variant" : baseline_variant
+}
+
+
 # FIXME : coq fails to build on domains
 df = df[(df.name != 'coq.BasicSyntax.v') & (df.name != 'coq.AbstractInterpretation.v')]
 
 baseline = fmt_baseline(baseline_record)
-print(baseline)
-
 
 ndf = normalise(df.copy(), baseline, 'time_secs')
 st.header("Normalized Time")
 with st.expander("Data"):
     st.write(ndf)
 with st.expander("Graph"):
-    if ndf.all() != None:
-        g = plot_normalised(ndf.copy(), baseline,'ntime_secs')
-        st.pyplot(g)
+    g = plot_normalised(ndf,'ntime_secs')
+    st.pyplot(g)
 
 st.header("Top heap words")
 with st.expander("Expand"):
     st.pyplot(plot(df.copy(), 'gc.top_heap_words'))
-
 ndf = normalise(df.copy(), baseline, 'gc.top_heap_words')
 st.header("Normalized top heap words")
 with st.expander("Data"):
     st.write(ndf)
 with st.expander("Expand"):
-    if ndf.all() != None:
-        g = plot_normalised(ndf.copy(), baseline, 'ngc.top_heap_words')
-        st.pyplot(g)
+    g = plot_normalised(ndf, 'ngc.top_heap_words')
+    st.pyplot(g)
 
 st.header("Max RSS (KB)")
 with st.expander("Expand"):
     st.pyplot(plot(df.copy(), "maxrss_kB"))
+ndf = normalise(df.copy(), baseline, 'maxrss_kB')
+st.header("Normalized Max RSS (KB)")
+with st.expander("Data"):
+    st.write(ndf)
+with st.expander("Expand"):
+    g = plot_normalised(ndf, 'nmaxrss_kB')
+    st.pyplot(g)
+
+st.header("Max RSS (KB)")
+with st.expander("Expand"):
+    st.pyplot(plot(df.copy(), "maxrss_kB"))
+ndf = normalise(df.copy(), baseline, 'gc.top_heap_words')
+st.header("Normalized top heap words")
+with st.expander("Data"):
+    st.write(ndf)
+with st.expander("Expand"):
+    g = plot_normalised(ndf, 'ngc.top_heap_words')
+    st.pyplot(g)
