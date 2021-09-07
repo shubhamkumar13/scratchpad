@@ -58,7 +58,7 @@ bench_files = []
 # <host n>
 
 #This idea is only for sandmark nightly
-class StupidIdea:
+class BenchStruct:
     config = {}
 
     def __init__(self):
@@ -102,7 +102,7 @@ for root, dirs, files in os.walk(artifacts_dir):
             f = root.split("/sequential")
             bench_files.append((os.path.join(root,file)))
 
-benches = StupidIdea()
+benches = BenchStruct()
 benches.add_files(bench_files)
 
 # st.write(benches.structure)
@@ -155,7 +155,7 @@ def get_selected_values(n):
         lst.append({"host" : host_val, "timestamp" : timestamp_val, "commit" : selected_commit, "variant" : selected_variant})
     return lst
 
-selected_benches = StupidIdea()
+selected_benches = BenchStruct()
 _ = [selected_benches.add(f["host"], f["timestamp"], f["commit"], f["variant"]) for f in get_selected_values(n)]
 
 # Expander for showing bench files
@@ -254,28 +254,24 @@ def normalise(df,variant,topic,additionalTopics=[]):
             for t in additionalTopics:
                 data[[t]] = grouped.get_group(variant)[t].values
             ndata_frames.append(data)
-            df = pd.concat(ndata_frames)
-            return df
         else:
             st.warning("The selected baseline variant is equal to the other variants\n" 
                   + "Update the dropdowns with different varians to plot normalisation graphs\n")
-            return None
+            break
+    df = pd.concat(ndata_frames)
+    return df
 
 def plot_normalised(df, topic):
-    if df is not None:
-        df = pd.DataFrame.copy(df)
-        df.sort_values(by=[topic],inplace=True)
-        df[topic] = df[topic] - 1
-        g = sns.catplot (x="display_name", y=topic, hue='variant', data = df, kind ='bar', aspect=4, bottom=1)
-        g.set_xticklabels(rotation=90)
-        g.ax.legend(loc=8)
-        g._legend.remove()
-        g.ax.set_xlabel("Benchmarks")
-        return g
-        # g.ax.set_yscale('log')
-    else:
-        st.warning("baseline and selected graphs can't be the same for generating normalized graphs\n")
-        return None
+    df = pd.DataFrame.copy(df)
+    df.sort_values(by=[topic],inplace=True)
+    df[topic] = df[topic] - 1
+    g = sns.catplot (x="display_name", y=topic, hue='variant', data = df, kind ='bar', aspect=4, bottom=1)
+    g.set_xticklabels(rotation=90)
+    g.ax.legend(loc=8)
+    g._legend.remove()
+    g.ax.set_xlabel("Benchmarks")
+    return g
+    # g.ax.set_yscale('log')
 
 df = get_dataframes_from_files(selected_files)
 
