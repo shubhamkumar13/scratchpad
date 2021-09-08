@@ -1,4 +1,4 @@
-from re import U, split
+from re import U, split, sub
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -248,6 +248,8 @@ def normalise(df,variant,topic,additionalTopics=[]):
     ndata_frames = []
     for group in grouped:
         (v,data) = group
+        # st.write(v)
+        # st.write(variant)
         if(v != variant):
             data['b'+topic] = grouped.get_group(variant)[topic].values
             data[['n'+topic]] = data[[topic]].div(grouped.get_group(variant)[topic].values, axis=0)
@@ -255,25 +257,28 @@ def normalise(df,variant,topic,additionalTopics=[]):
                 data[[t]] = grouped.get_group(variant)[t].values
             ndata_frames.append(data)
         else:
-            st.warning("The selected baseline variant is equal to the other variants\n" 
-                  + "Update the dropdowns with different varians to plot normalisation graphs\n")
-            break
-    df = pd.concat(ndata_frames)
-    return df
+            continue
+    if ndata_frames :
+        df = pd.concat(ndata_frames)
+        return df
+    else:
+        st.warning("Variants selected are same, please select some other variant to generate a normalized graph")
+        return pd.DataFrame()
 
 def plot_normalised(df, topic):
-    df = pd.DataFrame.copy(df)
-    df.sort_values(by=[topic],inplace=True)
-    df[topic] = df[topic] - 1
-    g = sns.catplot (x="display_name", y=topic, hue='variant', data = df, kind ='bar', aspect=4, bottom=1)
-    g.set_xticklabels(rotation=90)
-    g.ax.legend(loc=8)
-    g._legend.remove()
-    g.ax.set_xlabel("Benchmarks")
-    return g
-    # g.ax.set_yscale('log')
+    if not df.empty:
+        df = pd.DataFrame.copy(df)
+        df.sort_values(by=[topic],inplace=True)
+        df[topic] = df[topic] - 1
+        g = sns.catplot (x="display_name", y=topic, hue='variant', data = df, kind ='bar', aspect=4, bottom=1)
+        g.set_xticklabels(rotation=90)
+        g.ax.legend(loc=8)
+        g._legend.remove()
+        g.ax.set_xlabel("Benchmarks")
+        return g
 
 df = get_dataframes_from_files(selected_files)
+df = df.drop_duplicates(subset=['name','variant'])
 
 st.header("Data Table")
 with st.expander("Show table of selected benchmarks"):
