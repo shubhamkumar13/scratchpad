@@ -280,15 +280,8 @@ def plot_normalised(df, topic):
 df = get_dataframes_from_files(selected_files)
 df = df.drop_duplicates(subset=['name','variant'])
 
-st.header("Data Table")
-with st.expander("Show table of selected benchmarks"):
-    st.write(df)
 
-st.header("Time")
-with st.expander("Show time graph"):
-    st.pyplot(plot(df.copy(), 'time_secs'))
-
-st.header("Select baseline")
+st.header("Select baseline (for normalized graphs)")
 baseline_container = st.columns(3)
 baseline_host = baseline_container[0].selectbox(
     'hostname', 
@@ -318,6 +311,12 @@ df = df[(df.name != 'coq.BasicSyntax.v') & (df.name != 'coq.AbstractInterpretati
 
 baseline = fmt_baseline(baseline_record)
 
+st.header("Time")
+with st.expander("Data"):
+    st.write(df)
+with st.expander("Graph"):
+    st.pyplot(plot(df.copy(), 'time_secs'))
+
 ndf = normalise(df.copy(), baseline, 'time_secs')
 st.header("Normalized Time")
 with st.expander("Data"):
@@ -327,34 +326,40 @@ with st.expander("Graph"):
     st.pyplot(g)
 
 st.header("Top heap words")
-with st.expander("Expand"):
+with st.expander("Data"):
+    st.write(df)
+with st.expander("Graph"):
     st.pyplot(plot(df.copy(), 'gc.top_heap_words'))
 ndf = normalise(df.copy(), baseline, 'gc.top_heap_words')
 st.header("Normalized top heap words")
 with st.expander("Data"):
     st.write(ndf)
-with st.expander("Expand"):
+with st.expander("Graph"):
     g = plot_normalised(ndf, 'ngc.top_heap_words')
     st.pyplot(g)
 
 st.header("Max RSS (KB)")
-with st.expander("Expand"):
+with st.expander("Data"):
+    st.write(df)
+with st.expander("Graph"):
     st.pyplot(plot(df.copy(), "maxrss_kB"))
 ndf = normalise(df.copy(), baseline, 'maxrss_kB')
 st.header("Normalized Max RSS (KB)")
 with st.expander("Data"):
     st.write(ndf)
-with st.expander("Expand"):
+with st.expander("Graph"):
     g = plot_normalised(ndf, 'nmaxrss_kB')
     st.pyplot(g)
 
-st.header("Max RSS (KB)")
-with st.expander("Expand"):
-    st.pyplot(plot(df.copy(), "maxrss_kB"))
-ndf = normalise(df.copy(), baseline, 'gc.top_heap_words')
-st.header("Normalized top heap words")
+st.header("Major Collections")
+with st.expander("Data"):
+    st.write(df)
+with st.expander("Graph"):
+    st.pyplot(plot(df.copy(), "gc.major_collections"))
+ndf = normalise(df.copy(), baseline, 'gc.major_collections')
+st.header("Normalized major collections")
 with st.expander("Data"):
     st.write(ndf)
-with st.expander("Expand"):
-    g = plot_normalised(ndf, 'ngc.top_heap_words')
+with st.expander("Graph"):
+    g = plot_normalised(ndf, 'ngc.major_collections')
     st.pyplot(g)
