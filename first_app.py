@@ -108,8 +108,8 @@ benches.add_files(bench_files)
 # st.write(benches.structure)
 # st.write(bench_files)
 
-st.header("Select benchmarks")
-n = int(st.text_input('Number of benchmarks','2'))
+st.header("Select variants")
+n = int(st.text_input('Number of variants','2'))
 
 containers = [st.columns(3) for i in range(n)]
 
