@@ -1,9 +1,11 @@
 # Systemd inside a Docker container, for CI only
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 RUN apt-get update --yes
 
-RUN apt-get install --yes systemd curl git sudo python3 python3-dev wget
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+
+RUN apt-get install --yes systemd curl git sudo python3 python3-dev wget python3-pip
 
 # Kill all the things we don't need
 RUN find /etc/systemd/system \
@@ -31,4 +33,10 @@ RUN bash /tmp/setup_aws.sh
 
 RUN wget https://raw.githubusercontent.com/jupyterhub/the-littlest-jupyterhub/master/bootstrap/bootstrap.py
 
-CMD ["/bin/bash", "-c", "exec /sbin/init --log-target=journal 3>&1"]
+#RUN python3 /bootstrap.py --admin admin
+
+SHELL ["/bin/bash", "-c"]
+
+RUN ln -s /lib/systemd/systemd /sbin/init
+
+CMD exec /sbin/init --log-target=journal 3>&1
